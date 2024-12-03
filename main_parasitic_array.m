@@ -1,12 +1,22 @@
+%% MATLAB simulation code for generating results from the paper "Hybrid beamforming with reconfigurable parasitic antennas"
+%% Authors: Nitish Vikas Deshpande, Miguel R. Castellanos, Saeed R. Khosravirad, Jinfeng Du, Harish Viswanathan, and Robert W. Heath Jr.
 clear all
 close all
+rng default % For reproducibility
+
+%% Universal constants 
 c=3*10^8;
-%% Na Np element case:  Na active antenna and Na*Np parasitic antennas
+%% Fixed simulation parameters
 f_c=7*10^9;
 lambda_c= c/f_c;
 l=0.5*lambda_c;
 Z_0=50;  %% reference impedance
-rng default % For reproducibility
+sigma_c= 5.7*10^7;
+a=lambda_c/500; %% Radius of dipole antenna
+k=2*pi/lambda_c; %% wavenumber 
+Rzr_reference=0.05; %% Real part of parasitic impedance is assumed to be small to avoid losses
+dx_by_lambda_c=0.4;
+dy_by_lambda_c=0.5;
 %% Parameters for path loss
 r= 250; %% Distance between transmitter and receiver
 Kb=1.380649*10^(-23);
@@ -15,43 +25,58 @@ BW=20*10^6;
 G=(lambda_c/(4*pi*r))^2;
 
 %% Parameters for power consumption: ref Hybrid MIMO Architectures for Millimeter Wave Communications: Phase Shifters or Switches?
-%P_rf= 250*10^(-3);
 P_rf= 240*10^(-3);
-%P_ps= 0.001; %% phase shifter
 P_ps= 30*10^(-3); %% phase shifter
 
 
-%P_t_arr_dBm= [10:0.1:20];
-P_t_arr_dBm= [10];
-P_t_arr=10.^((P_t_arr_dBm-30)./10);
-
-
-sigma_c= 5.7*10^7;
-
-a=lambda_c/500;
-k=2*pi/lambda_c;
-Rzr_reference=0.05;
-
+%% Generate impedance matrix from MATLAB antenna toolbox or use the impedance matrices generated from Feko
 impedance_mat_from_matlab=1;
 impedance_mat_from_feko=0;
 
+%% Number of Monte Carlo iterations used for random channel generation
 num_realizations=500;
 
+%% Vary transmit power in dBm
+vary_transmit_power=1;
+if vary_transmit_power==1
+    P_t_arr_dBm= [-10:1:30];
+    %P_t_arr_dBm= [10:0.1:20];
+else
+    P_t_arr_dBm= [10];
+end
+%% Power conversion from dBm to linear scale
+P_t_arr=10.^((P_t_arr_dBm-30)./10);
 
+
+%% Vary number of parasitic elements and active antennas
 %Na_arr=[4:2:32];
 %Na_arr=[6];
-Na_arr=[4];
-Np_arr= [1,2,3,4,5,6];
+vary_number_of_parasitics=0;
 
-%%
+%% number of parasitic elements per active antenna
+if vary_number_of_parasitics==1
+    Np_arr = [1,2,3,4,5,6];
+else
+    Np_arr = 2;
+end
+
+vary_number_of_active_antennas=0;
+if vary_number_of_active_antennas==1
+    Na_arr = [4:4:32];
+else
+    Na_arr = [4];
+end
+
+
+%% Store SNR, power consumed, spectral and energy efficiency results 
 SNR_MAMP_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr));
 SE_MAMP_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr));
-SNR_only_active_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr)); %% SNR with all parasitic elements removed
+SNR_only_active_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr)); %% SNR with all parasitic elements removed (FA-ULA)
 SE_only_active_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr));
-SNR_fully_active_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr)); %% SNR with fully active elements 
+SNR_fully_active_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr)); %% SNR with fully active elements (FA-UPA) 
 SE_fully_active_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr));
 
-SNR_hybrid_ps_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr)); %% SNR with sub-connected hybrid array with Phase shifters
+SNR_hybrid_ps_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr)); %% SNR with sub-connected hybrid array with Phase shifters (HPS-UPA)
 SE_hybrid_ps_arr=zeros(num_realizations, length(P_t_arr_dBm), length(Na_arr), length(Np_arr));
 
 p_consumed_MAMP_arr=zeros(length(P_t_arr),length(Na_arr), length(Np_arr) );
@@ -71,11 +96,6 @@ for np_i = 1:length(Np_arr)
         Na=Na_arr(na_i);
         Np=Np_arr(np_i);
 
-        dx_by_lambda_c=0.4;
-        dy_by_lambda_c=0.5;
-
-
-
         dx=dx_by_lambda_c*lambda_c;
         dy=dy_by_lambda_c*lambda_c;
         Z_s= self_impedance_dip(k, l, a);
@@ -84,7 +104,6 @@ for np_i = 1:length(Np_arr)
         Ny=Na;
         N=(Np+1)*Na;
         if mod(Np+1,2)==0
-            %index_active_antenna= [(Np+1)/2+1: Np+1:(Np+1)/2+1+  (Np+1)*(Na-1)];
             index_active_antenna= [(Np+1)/2: Np+1:(Np+1)/2+  (Np+1)*(Na-1)];
         else
             index_active_antenna= [(Np+2)/2:  Np+1: (Np+2)/2+(Np+1)*(Na-1)] ;    
@@ -92,9 +111,6 @@ for np_i = 1:length(Np_arr)
 
         if impedance_mat_from_matlab==1
             Z_ref0= zeros(Nx, Ny); %% Impedances of all antennas wrt the 1st antenna
-
-
-
 
             for nx=1:Nx
                 for ny=1:Ny
@@ -119,8 +135,6 @@ for np_i = 1:length(Np_arr)
                 end
             end
 
-
-
             R_loss=  compute_loss_resistance(k, l, a, f_c, sigma_c);
             Z_tx=Z_tx+R_loss*eye(Na*(Np+1));
 
@@ -144,8 +158,6 @@ for np_i = 1:length(Np_arr)
 
 
         sigma_sq= 4*Kb*TA*BW/real(Z_tx(1,1));
-
-
 
 
         for ti=1:num_realizations
