@@ -1,4 +1,4 @@
-%% MATLAB simulation code for generating results from the paper "Hybrid beamforming with reconfigurable parasitic antennas"
+%% MATLAB simulation code for generating results from the paper "Beamforming with hybrid reconfigurable parasitic antenna arrays"
 %% Authors: Nitish Vikas Deshpande, Miguel R. Castellanos, Saeed R. Khosravirad, Jinfeng Du, Harish Viswanathan, and Robert W. Heath Jr.
 clear all
 close all
